@@ -176,10 +176,15 @@ Example `label` column: `0`, `3`, `8`, …
 
 ### `sig` — algorithm name (substring match)
 
-For `kind="sig"`, `label` is a **string**. It is matched **case-insensitively
-by substring** against four keywords, so noisy values like `Dilithium5.out`,
-`falcon-512`, or `SPHINCS+-SHA2-128f` all map cleanly. Any row that matches none
-of the keywords is **skipped**.
+For `kind="sig"`, `label` is a **string** (unlike `kex`, which is a numeric id).
+It is matched **case-insensitively by substring** against four keywords, so
+noisy values like `Dilithium5.out`, `falcon-512`, or `SPHINCS+-SHA2-128f` all
+map cleanly. Any row that matches none of the keywords is **skipped**.
+
+> **Note:** the `0`–`3` integers in `pq_cls.sig.LABELS` are the model's internal
+> output classes, *not* the input format. Your CSV `label` column must contain
+> the algorithm-name strings below; integer ids `0`–`3` will not match and those
+> rows will be skipped.
 
 | substring in `label` (case-insensitive) | maps to     | algorithm          | type         |
 |------------------------------------------|-------------|--------------------|--------------|
