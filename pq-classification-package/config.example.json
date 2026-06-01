@@ -1,0 +1,10 @@
+{
+  "kex": {
+    "model":  "pq_classification/artifacts/models/kex_model.joblib",
+    "scaler": "pq_classification/artifacts/scalers/kex_scaler.pkl"
+  },
+  "sig": {
+    "model":  "pq_classification/artifacts/models/model_sig.joblib",
+    "scaler": "pq_classification/artifacts/scalers/scaler_sig.pkl"
+  }
+}

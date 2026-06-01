@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pq_classification"
+version = "0.1.0"
+description = "Classify post-quantum KEX and SIG telemetry from runtime memory/CPU traces."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Tushin Mallick" }]
+license = { text = "MIT" }
+dependencies = [
+    "pandas",
+    "joblib",
+    "scikit-learn==1.4.2",
+    "xgboost==2.0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["pq_classification*"]
+
+[tool.setuptools.package-data]
+pq_classification = [
+    "artifacts/models/*.joblib",
+    "artifacts/scalers/*.pkl",
+]
