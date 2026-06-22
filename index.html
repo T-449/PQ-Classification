@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PQ Classifier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    color-scheme: light;
+    --canvas: #f5f6f8;
+    --surface: #ffffff;
+    --surface-2: #fcfdfe;
+    --border: #e4e7ec;
+    --border-strong: #d3d8e0;
+    --ink: #0e1116;
+    --muted: #5b6471;
+    --faint: #8a93a0;
+    --track: #eef1f5;
+    --chip: #f3f5f8;
+
+    --kex: #0f766e;   --kex-strong: #0b5e57;   --kex-tint: #e6f4f2;
+    --sig: #6d28d9;   --sig-strong: #5b21b6;   --sig-tint: #f1ebfb;
+    --cap: #b45309;   --cap-strong: #92400e;   --cap-tint: #fbf0e2;
+
+    --ok: #15803d;  --ok-bg: #eaf6ee;
+    --err: #b42318; --err-bg: #fdeceb;
+    --idle: #94a3b8;
+
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans); background: var(--canvas); color: var(--ink);
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; line-height: 1.45;
+  }
+
+  /* top bar */
+  .topbar { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.9);
+    backdrop-filter: saturate(140%) blur(8px); border-bottom: 1px solid var(--border); }
+  .topbar__inner { max-width: 1240px; margin: 0 auto; padding: 0 24px; height: 60px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand__name { font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+  .brand__sep { color: var(--border-strong); font-weight: 400; }
+  .brand__tag { font-family: var(--mono); font-size: 12px; color: var(--faint); letter-spacing: .01em; }
+
+  .status { position: relative; }
+  .status__btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border);
+    background: var(--surface); border-radius: 999px; padding: 6px 12px 6px 10px; font: inherit;
+    font-size: 13px; color: var(--ink); cursor: pointer; transition: border-color .15s ease; }
+  .status__btn:hover { border-color: var(--border-strong); }
+  .status__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle);
+    box-shadow: 0 0 0 3px rgba(148,163,184,.18); flex: none; transition: background .2s ease, box-shadow .2s ease; }
+  .status--ok .status__dot { background: var(--ok); box-shadow: 0 0 0 3px rgba(21,128,61,.16); }
+  .status--err .status__dot { background: var(--err); box-shadow: 0 0 0 3px rgba(180,35,24,.14); }
+  .status__label { font-weight: 500; }
+  .status__endpoint { font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+    border-left: 1px solid var(--border); padding-left: 8px; }
+
+  .popover { position: absolute; top: calc(100% + 8px); right: 0; width: 300px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.12), var(--shadow);
+    padding: 14px; display: none; }
+  .popover[data-open="true"] { display: block; }
+  .popover__title { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+  .popover__hint { font-size: 12px; color: var(--muted); margin: 0 0 10px; line-height: 1.4; }
+  .popover__row { display: flex; gap: 8px; }
+  .input { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12.5px; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; }
+  .input:focus { outline: 2px solid rgba(15,118,110,.35); outline-offset: 1px; border-color: var(--kex); }
+  .btn-sm { font: inherit; font-size: 13px; font-weight: 600; color: #fff; background: var(--ink);
+    border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+  .btn-sm:hover { background: #000; }
+
+  /* layout */
+  main { max-width: 1240px; margin: 0 auto; padding: 44px 24px 56px; }
+  .intro { max-width: 760px; margin: 0 0 36px; }
+  .intro h1 { font-size: 30px; line-height: 1.18; letter-spacing: -.02em; font-weight: 680; margin: 0 0 12px; }
+  .intro p { font-size: 15.5px; color: var(--muted); margin: 0; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
+
+  /* panel */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px; display: flex; flex-direction: column; gap: 15px; }
+  .panel--kex { --accent: var(--kex); --accent-strong: var(--kex-strong); --tint: var(--kex-tint); }
+  .panel--sig { --accent: var(--sig); --accent-strong: var(--sig-strong); --tint: var(--sig-tint); }
+  .panel--cap { --accent: var(--cap); --accent-strong: var(--cap-strong); --tint: var(--cap-tint); }
+
+  .panel__head { display: flex; flex-direction: column; gap: 7px; }
+  .eyebrow { align-self: flex-start; font-family: var(--mono); font-size: 12px; font-weight: 500;
+    letter-spacing: .01em; color: var(--accent); background: var(--tint); padding: 4px 9px; border-radius: 6px; }
+  .panel__title { font-size: 18px; font-weight: 650; letter-spacing: -.01em; margin: 2px 0 0; }
+  .panel__desc { font-size: 13.5px; color: var(--muted); margin: 0; min-height: 38px; }
+
+  .reqs { display: flex; flex-direction: column; gap: 8px; }
+  .reqs__top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .reqs__label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); }
+  .linkbtn { font-size: 12.5px; font-weight: 500; color: var(--accent); background: none; border: none;
+    padding: 0; cursor: pointer; font-family: var(--sans); }
+  .linkbtn:hover { text-decoration: underline; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-family: var(--mono); font-size: 12px; color: var(--ink); background: var(--chip);
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px; white-space: nowrap; }
+  .reqs__note, .panel__note { font-size: 12.5px; color: var(--faint); margin: 0; }
+  .panel__note { min-height: 34px; }
+  code { font-family: var(--mono); font-size: .92em; }
+
+  /* dropzone */
+  .drop { border: 1.5px dashed var(--border-strong); border-radius: 12px; background: var(--surface-2);
+    padding: 20px; text-align: center; cursor: pointer; transition: border-color .15s ease, background .15s ease; display: block; }
+  .drop:hover, .drop--over { border-color: var(--accent); background: var(--tint); }
+  .drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .drop__icon { color: var(--faint); margin-bottom: 6px; }
+  .drop:hover .drop__icon, .drop--over .drop__icon { color: var(--accent); }
+  .drop__title { font-size: 14px; font-weight: 550; }
+  .drop__sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .drop__sub b { color: var(--accent); font-weight: 600; }
+
+  .file { display: none; align-items: center; gap: 11px; border: 1px solid var(--border);
+    border-radius: 12px; background: var(--surface-2); padding: 11px 13px; }
+  .file[data-shown="true"] { display: flex; }
+  .file__icon { color: var(--accent); flex: none; }
+  .file__meta { min-width: 0; flex: 1; text-align: left; }
+  .file__name { font-family: var(--mono); font-size: 12.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file__rows { font-size: 12px; color: var(--faint); margin-top: 1px; }
+  .file__replace { font: inherit; font-size: 12.5px; color: var(--muted); background: none;
+    border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; cursor: pointer; white-space: nowrap; }
+  .file__replace:hover { border-color: var(--border-strong); color: var(--ink); }
+
+  .sample-row { display: flex; justify-content: flex-end; margin-top: -4px; }
+  .sample-row .linkbtn { color: var(--faint); }
+  .sample-row .linkbtn:hover { color: var(--accent); }
+
+  /* primary button */
+  .run { font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: var(--accent);
+    border: none; border-radius: 10px; padding: 11px 16px; cursor: pointer; display: inline-flex;
+    align-items: center; justify-content: center; gap: 9px; transition: background .15s ease; }
+  .run:hover:not(:disabled) { background: var(--accent-strong); }
+  .run:disabled { background: #c4cbd6; cursor: not-allowed; }
+  .run:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.45); border-top-color: #fff;
+    border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+  .run[data-loading="true"] .spinner { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* messages */
+  .msg { display: none; font-size: 12.5px; border-radius: 10px; padding: 10px 12px; line-height: 1.45; }
+  .msg[data-shown="true"] { display: block; }
+  .msg--err { background: var(--err-bg); color: #8a1c14; border: 1px solid #f6cfcb; }
+  .msg--note { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+
+  /* results */
+  .results { display: none; flex-direction: column; gap: 15px; padding-top: 2px; }
+  .results[data-shown="true"] { display: flex; }
+  .results__divider { height: 1px; background: var(--border); }
+  .results__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .results__summary { font-size: 13px; color: var(--muted); }
+  .results__summary b { color: var(--ink); font-weight: 650; font-family: var(--mono); }
+  .acc { display: inline-flex; align-items: baseline; gap: 6px; font-family: var(--mono); font-size: 12px;
+    color: var(--accent); background: var(--tint); border-radius: 6px; padding: 3px 8px; font-weight: 600; }
+  .acc small { color: var(--muted); font-weight: 500; }
+  .results__download { font-size: 12.5px; font-weight: 500; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; }
+  .results__download:hover { text-decoration: underline; }
+
+  .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin: 0 0 9px; }
+
+  /* spectrum */
+  .spectrum { display: flex; flex-direction: column; gap: 10px; }
+  .bar__row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .bar__label { font-family: var(--mono); font-size: 12.5px; color: var(--ink); font-weight: 500; }
+  .bar__value { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .bar__track { height: 6px; background: var(--track); border-radius: 999px; margin-top: 6px; overflow: hidden; }
+  .bar__fill { height: 100%; background: var(--accent); border-radius: 999px; width: 0; transition: width .5s cubic-bezier(.2,.7,.2,1); }
+
+  /* tables */
+  .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 300px; }
+  table.tbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  table.tbl thead th { position: sticky; top: 0; background: var(--surface-2); text-align: left; font-weight: 600;
+    color: var(--faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.tbl td { padding: 7px 12px; border-bottom: 1px solid #f0f2f5; color: var(--ink); vertical-align: top; }
+  table.tbl tbody tr:last-child td { border-bottom: none; }
+  table.tbl tbody tr:nth-child(even) td { background: #fafbfc; }
+  table.tbl .idx { color: var(--faint); width: 40px; }
+  table.tbl tr.miss td { background: #fdf3f2 !important; }
+  table.tbl tr.miss .pred { color: var(--err); font-weight: 600; }
+  .mark { width: 26px; text-align: center; }
+  .mark.ok { color: var(--ok); }
+  .mark.no { color: var(--err); }
+  .algos { display: flex; flex-direction: column; gap: 2px; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 2px 7px; border-radius: 5px; }
+  .tag--pq { color: var(--cap-strong); background: var(--cap-tint); }
+  .tag--cl { color: var(--muted); background: var(--chip); }
+  .tag--mix { color: var(--err); background: var(--err-bg); }
+  .table-more { font-size: 12px; color: var(--faint); margin: 8px 0 0; text-align: center; }
+  .raw { font-family: var(--mono); font-size: 11.5px; color: var(--ink); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; max-height: 240px; white-space: pre-wrap; }
+
+  /* footer */
+  footer { max-width: 1240px; margin: 0 auto; padding: 26px 24px 48px; border-top: 1px solid var(--border); }
+  .foot-grid { display: flex; flex-wrap: wrap; gap: 22px 40px; align-items: flex-end; }
+  .foot-block { display: flex; flex-direction: column; gap: 5px; }
+  .foot-block h4 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin: 0; }
+  .foot-labels { font-family: var(--mono); font-size: 12px; color: var(--muted); max-width: 360px; }
+  .foot-labels.k { color: var(--kex); } .foot-labels.s { color: var(--sig); } .foot-labels.c { color: var(--cap-strong); }
+  .foot-note { font-size: 12.5px; color: var(--faint); margin-left: auto; }
+
+  @media (max-width: 1080px) { .grid { grid-template-columns: 1fr; } .panel__desc, .panel__note { min-height: 0; } }
+  @media (max-width: 820px) {
+    .intro h1 { font-size: 25px; } .topbar__inner { padding: 0 16px; } main { padding: 32px 16px 44px; }
+    .brand__tag, .status__endpoint { display: none; } .popover { width: 280px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="5" cy="6" r="1.6" fill="currentColor"/><circle cx="19" cy="6" r="1.6" fill="currentColor"/>
+          <circle cx="12" cy="18" r="1.6" fill="currentColor"/><circle cx="12" cy="9.5" r="1.6" fill="currentColor"/>
+          <path d="M5 6 L12 9.5 L19 6 M12 9.5 L12 18 M5 6 L12 18 L19 6" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round" opacity=".55"/>
+        </svg>
+        <span class="brand__name">PQ Classifier</span>
+        <span class="brand__sep">/</span>
+        <span class="brand__tag">algorithm fingerprinting</span>
+      </div>
+      <div class="status" id="status">
+        <button class="status__btn" id="statusBtn" aria-haspopup="true" aria-expanded="false">
+          <span class="status__dot"></span>
+          <span class="status__label" id="statusLabel">Checking…</span>
+          <span class="status__endpoint" id="statusEndpoint">same origin</span>
+        </button>
+        <div class="popover" id="popover" role="dialog" aria-label="Backend endpoint">
+          <p class="popover__title">Backend endpoint</p>
+          <p class="popover__hint">Where the classifier server is running. Leave blank to use the same origin this page is served from.</p>
+          <div class="popover__row">
+            <input class="input" id="endpointInput" type="text" placeholder="http://localhost:5001" autocomplete="off" spellcheck="false" />
+            <button class="btn-sm" id="endpointSave">Use</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro">
+      <h1>Fingerprint post-quantum cryptographic algorithms</h1>
+      <p>Classify key-exchange and signature algorithms from runtime measurements, or detect PQ key exchange directly in a packet capture. Include a <code>label</code> column in a CSV and each result is scored against it.</p>
+    </section>
+
+    <div class="grid">
+      <!-- KEX -->
+      <section class="panel panel--kex" data-kind="csv" data-endpoint="/classifykex" data-name="key exchange"
+               data-template="kex_template.csv" data-sample="kex" data-columns="VmSize,VmData,VmRSS,VmExe">
+        <div class="panel__head">
+          <span class="eyebrow">POST /classifykex</span>
+          <h2 class="panel__title">Key exchange</h2>
+          <p class="panel__desc">Identifies the key-exchange mechanism from process memory fields.</p>
+        </div>
+        <div class="reqs">
+          <div class="reqs__top"><span class="reqs__label">Required columns</span><button class="linkbtn" data-template-btn>Download template</button></div>
+          <div class="chips" data-chips></div>
+          <p class="reqs__note">Optional <code>elapsed_time</code> is ignored; <code>label</code> is used as ground truth if present.</p>
+        </div>
+        <label class="drop" tabindex="0" role="button" aria-label="Upload a CSV for key-exchange classification">
+          <input type="file" accept=".csv,text/csv" hidden data-input />
+          <div class="drop__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4M12 4L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          <div class="drop__title">Drop your CSV here</div><div class="drop__sub">or <b>browse files</b></div>
+        </label>
+        <div class="file" data-file>
+          <span class="file__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h7l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 3v5h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+          <div class="file__meta"><div class="file__name" data-file-name></div><div class="file__rows" data-file-rows></div></div>
+          <button class="file__replace" data-replace>Replace</button>
+        </div>
+        <div class="sample-row"><button class="linkbtn" data-sample-btn>Load sample data</button></div>
+        <button class="run" data-run disabled><span class="spinner"></span><span data-run-label>Classify key exchange</span></button>
+        <div class="msg" data-msg></div>
+        <div class="results" data-results>
+          <div class="results__divider"></div>
+          <div class="results__bar"><span class="results__summary" data-summary></span><button class="results__download" data-download>Download results (CSV)</button></div>
+          <div><p class="section-label">Algorithm spectrum</p><div class="spectrum" data-spectrum></div></div>
+          <div><p class="section-label" data-table-label>Predictions</p><div class="table-wrap" data-table-wrap></div><p class="table-more" data-more></p></div>
+        </div>
+      </section>
+
+      <!-- SIG -->
+      <section class="panel panel--sig" data-kind="csv" data-endpoint="/classifysig" data-name="signatures"
+               data-template="sig_template.csv" data-sample="sig"
+               data-columns="CPU0_cycles,CPU1_cycles,CPU2_cycles,CPU3_cycles,CPU4_cycles,CPU5_cycles,CPU6_cycles,CPU7_cycles,CPU8_cycles,CPU9_cycles,CPU10_cycles,CPU11_cycles,VmSize,VmRSS,VmData,VmStk,VmExe,VmLib,VmPTE">
+        <div class="panel__head">
+          <span class="eyebrow">POST /classifysig</span>
+          <h2 class="panel__title">Digital signatures</h2>
+          <p class="panel__desc">Identifies the signature algorithm from CPU cycle counts and memory fields.</p>
+        </div>
+        <div class="reqs">
+          <div class="reqs__top"><span class="reqs__label">Required columns</span><button class="linkbtn" data-template-btn>Download template</button></div>
+          <div class="chips" data-chips></div>
+          <p class="reqs__note">Missing CPU/memory columns are filled with <code>0</code>; <code>label</code> is used as ground truth if present.</p>
+        </div>
+        <label class="drop" tabindex="0" role="button" aria-label="Upload a CSV for signature classification">
+          <input type="file" accept=".csv,text/csv" hidden data-input />
+          <div class="drop__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4M12 4L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          <div class="drop__title">Drop your CSV here</div><div class="drop__sub">or <b>browse files</b></div>
+        </label>
+        <div class="file" data-file>
+          <span class="file__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h7l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 3v5h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+          <div class="file__meta"><div class="file__name" data-file-name></div><div class="file__rows" data-file-rows></div></div>
+          <button class="file__replace" data-replace>Replace</button>
+        </div>
+        <div class="sample-row"><button class="linkbtn" data-sample-btn>Load sample data</button></div>
+        <button class="run" data-run disabled><span class="spinner"></span><span data-run-label>Classify signatures</span></button>
+        <div class="msg" data-msg></div>
+        <div class="results" data-results>
+          <div class="results__divider"></div>
+          <div class="results__bar"><span class="results__summary" data-summary></span><button class="results__download" data-download>Download results (CSV)</button></div>
+          <div><p class="section-label">Algorithm spectrum</p><div class="spectrum" data-spectrum></div></div>
+          <div><p class="section-label" data-table-label>Predictions</p><div class="table-wrap" data-table-wrap></div><p class="table-more" data-more></p></div>
+        </div>
+      </section>
+
+      <!-- CAPTURE -->
+      <section class="panel panel--cap" data-kind="capture" data-endpoint="/classify" data-name="TLS capture" data-sample="capture">
+        <div class="panel__head">
+          <span class="eyebrow">POST /classify</span>
+          <h2 class="panel__title">TLS capture</h2>
+          <p class="panel__desc">Detects PQ key exchange in a packet capture and reports the IPs and probable algorithms.</p>
+        </div>
+        <p class="panel__note">Accepts a <code>.pcapng</code> capture containing TLS, QUIC, OpenVPN, or OIDC handshakes. Key sizes are read from the handshake to identify the algorithm.</p>
+        <label class="drop" tabindex="0" role="button" aria-label="Upload a packet capture">
+          <input type="file" accept=".pcapng,.pcap" hidden data-input />
+          <div class="drop__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4M12 4L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          <div class="drop__title">Drop your capture here</div><div class="drop__sub">or <b>browse files</b> · .pcapng</div>
+        </label>
+        <div class="file" data-file>
+          <span class="file__icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h7l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M13 3v5h5" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></span>
+          <div class="file__meta"><div class="file__name" data-file-name></div><div class="file__rows" data-file-rows></div></div>
+          <button class="file__replace" data-replace>Replace</button>
+        </div>
+        <div class="sample-row"><button class="linkbtn" data-sample-btn>Load sample data</button></div>
+        <button class="run" data-run disabled><span class="spinner"></span><span data-run-label>Detect PQ connections</span></button>
+        <div class="msg" data-msg></div>
+        <div class="results" data-results>
+          <div class="results__divider"></div>
+          <div class="results__bar"><span class="results__summary" data-summary></span><button class="results__download" data-download>Download results (CSV)</button></div>
+          <div><p class="section-label">Connections</p><div class="table-wrap" data-table-wrap></div><p class="table-more" data-more></p></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="foot-grid">
+      <div class="foot-block"><h4>Key exchange labels</h4><div class="foot-labels k">kyber · classic · frodokem · bike · ntruprime · hqc · sike · rsa · ecdh</div></div>
+      <div class="foot-block"><h4>Signature labels</h4><div class="foot-labels s">Dilithium · Falcon · SPHINCS · DSA</div></div>
+      <div class="foot-block"><h4>Capture</h4><div class="foot-labels c">PQ key-exchange detection over TLS / QUIC / VPN / OIDC</div></div>
+      <div class="foot-note">Predictions come from the models on the running backend.</div>
+    </div>
+  </footer>
+
+<script>
+(function () {
+  "use strict";
+  var RENDER_CAP = 200;
+  var API = { base: "" };
+
+  var PQ_KEYS = ["kyber","frodo","mceliece","bike","hqc","ntru","sike","dilithium","falcon","sphincs"];
+  function isPQ(a) { a = String(a).toLowerCase(); return PQ_KEYS.some(function (k) { return a.indexOf(k) > -1; }); }
+
+  /* sample data (used by "Load sample data" — rendered with no backend) */
+  var SAMPLES = {
+    kex: {
+      cols: ["VmSize","VmData","VmRSS","VmExe"],
+      rows: [
+        {f:[2412044,1881232,84212,2964], t:"kyber",     p:"kyber"},
+        {f:[2410992,1879884,83120,2964], t:"kyber",     p:"kyber"},
+        {f:[5121888,4530112,142880,2964],t:"frodokem",  p:"frodokem"},
+        {f:[5119004,4528660,141902,2964],t:"frodokem",  p:"frodokem"},
+        {f:[3088760,2511440,109884,2964],t:"bike",      p:"hqc"},
+        {f:[3090112,2512992,110540,2964],t:"bike",      p:"bike"},
+        {f:[2766320,2190118,98760,2964], t:"hqc",       p:"hqc"},
+        {f:[4011220,3402990,126540,2964],t:"ntruprime", p:"ntruprime"},
+        {f:[1988044,1466210,74980,2964], t:"sike",      p:"sike"},
+        {f:[612880,140330,42110,2964],   t:"ecdh",      p:"ecdh"},
+        {f:[600448,131004,40880,2964],   t:"rsa",       p:"ecdh"},
+        {f:[8829930,8021140,201440,2964],t:"classic",   p:"classic"}
+      ]
+    },
+    sig: {
+      cols: ["CPU0_cycles","CPU1_cycles","CPU2_cycles","CPU3_cycles","CPU4_cycles","CPU5_cycles","CPU6_cycles","CPU7_cycles","CPU8_cycles","CPU9_cycles","CPU10_cycles","CPU11_cycles","VmSize","VmRSS","VmData","VmStk","VmExe","VmLib","VmPTE"],
+      rows: [
+        {t:"Dilithium", p:"Dilithium"}, {t:"Dilithium", p:"Dilithium"}, {t:"Dilithium", p:"SPHINCS"},
+        {t:"Falcon", p:"Falcon"}, {t:"Falcon", p:"Falcon"}, {t:"Falcon", p:"Dilithium"},
+        {t:"SPHINCS", p:"SPHINCS"}, {t:"SPHINCS", p:"SPHINCS"}, {t:"SPHINCS", p:"Falcon"},
+        {t:"DSA", p:"DSA"}, {t:"DSA", p:"DSA"}, {t:"DSA", p:"DSA"}
+      ]
+    },
+    capture: [
+      {ip:"104.21.5.18",   algorithms:["Kyber768"],                             true:"Kyber768"},
+      {ip:"172.67.140.9",  algorithms:["X25519Kyber768"],                       true:"X25519Kyber768"},
+      {ip:"203.0.113.8",   algorithms:["Classic-McEliece-348864","ECDH-P384"],  true:"ECDH-P384"},
+      {ip:"198.51.100.23", algorithms:["FrodoKEM-640"],                         true:"FrodoKEM-640"}
+    ]
+  };
+
+  /* helpers */
+  function joinUrl(base, path) { return base ? base.replace(/\/+$/, "") + path : path; }
+  function csvField(v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function download(filename, text) {
+    var blob = new Blob([text], { type: "text/csv;charset=utf-8;" }), url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+  function splitRow(line) { return line.split(",").map(function (c) { return c.trim(); }); }
+  function parseCSV(text) {
+    var lines = text.replace(/\r\n?/g, "\n").split("\n").filter(function (l) { return l.trim().length > 0; });
+    if (!lines.length) return { header: [], rows: [] };
+    return { header: splitRow(lines[0]), rows: lines.slice(1).map(splitRow) };
+  }
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+
+  /* status pill */
+  var statusEl = document.getElementById("status"), statusBtn = document.getElementById("statusBtn"),
+      statusLabel = document.getElementById("statusLabel"), statusEndpoint = document.getElementById("statusEndpoint"),
+      popover = document.getElementById("popover"), endpointInput = document.getElementById("endpointInput"),
+      endpointSave = document.getElementById("endpointSave");
+  function setStatus(state, label) {
+    statusEl.classList.remove("status--ok", "status--err");
+    if (state === "ok") statusEl.classList.add("status--ok");
+    if (state === "err") statusEl.classList.add("status--err");
+    statusLabel.textContent = label;
+    statusEndpoint.textContent = API.base ? API.base.replace(/^https?:\/\//, "") : "same origin";
+  }
+  function ping() {
+    setStatus("idle", "Checking…");
+    var ctrl = new AbortController(), t = setTimeout(function () { ctrl.abort(); }, 2800);
+    fetch(joinUrl(API.base, "/health"), { signal: ctrl.signal })
+      .then(function (r) { clearTimeout(t); setStatus(r.ok ? "ok" : "err", r.ok ? "Connected" : "Unavailable"); })
+      .catch(function () { clearTimeout(t); setStatus("err", "Offline"); });
+  }
+  function openPopover(open) {
+    popover.setAttribute("data-open", open ? "true" : "false");
+    statusBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) { endpointInput.value = API.base; endpointInput.focus(); }
+  }
+  statusBtn.addEventListener("click", function (e) { e.stopPropagation(); openPopover(popover.getAttribute("data-open") !== "true"); });
+  popover.addEventListener("click", function (e) { e.stopPropagation(); });
+  document.addEventListener("click", function () { openPopover(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") openPopover(false); });
+  function applyEndpoint() { API.base = endpointInput.value.trim(); openPopover(false); ping(); }
+  endpointSave.addEventListener("click", applyEndpoint);
+  endpointInput.addEventListener("keydown", function (e) { if (e.key === "Enter") applyEndpoint(); });
+
+  /* capture response normalizer — tolerant of several shapes */
+  function normalizeCapture(data) {
+    var arr = null;
+    if (Array.isArray(data)) arr = data;
+    else if (data && Array.isArray(data.results)) arr = data.results;
+    else if (data && Array.isArray(data.connections)) arr = data.connections;
+    else if (data && Array.isArray(data.ips)) arr = data.ips;
+    else if (data && Array.isArray(data.labels)) arr = data.labels.map(function (l) { return { algorithms: [l] }; });
+    else if (data && typeof data === "object") {
+      var keys = Object.keys(data);
+      if (keys.length && keys.every(function (k) { return /^\d+\.\d+\.\d+\.\d+/.test(k); }))
+        arr = keys.map(function (k) { return { ip: k, algorithms: data[k] }; });
+    }
+    if (!arr) return null;
+    return arr.map(function (it) {
+      if (typeof it === "string") return { ip: "", algorithms: [it], truth: null };
+      var algos = it.algorithms || it.algorithm || it.labels || it.kex || it.key_exchange || it.algos || [];
+      if (!Array.isArray(algos)) algos = [algos];
+      algos = algos.map(String).filter(Boolean);
+      return { ip: it.ip || it.address || it.src || it.host || "", algorithms: algos,
+               truth: it.true || it.truth || it.confirmed || it.ground_truth || null };
+    });
+  }
+
+  /* panel logic */
+  function initPanel(panel) {
+    var kind = panel.dataset.kind;
+    var endpoint = panel.dataset.endpoint;
+    var sampleKey = panel.dataset.sample;
+    var columns = panel.dataset.columns ? panel.dataset.columns.split(",").map(function (s) { return s.trim(); }) : [];
+
+    var q = function (s) { return panel.querySelector(s); };
+    var input = q("[data-input]"), drop = q(".drop"), fileCard = q("[data-file]"),
+        fileName = q("[data-file-name]"), fileRows = q("[data-file-rows]"), replaceBtn = q("[data-replace]"),
+        sampleBtn = q("[data-sample-btn]"), runBtn = q("[data-run]"), runLabel = q("[data-run-label]"),
+        msg = q("[data-msg]"), results = q("[data-results]"), summary = q("[data-summary]"),
+        spectrum = q("[data-spectrum]"), tableWrap = q("[data-table-wrap]"), tableLabel = q("[data-table-label]"),
+        moreNote = q("[data-more]"), downloadBtn = q("[data-download]");
+
+    var idleLabel = runLabel.textContent;
+    var loadingLabel = kind === "capture" ? "Scanning…" : "Classifying…";
+
+    var current = null, parsed = null, demo = false;
+    var lastOut = null; // { kind, labels|items, truth, header }
+
+    if (kind === "csv") {
+      var chips = q("[data-chips]");
+      columns.forEach(function (c) { chips.appendChild(el("span", "chip", c)); });
+      q("[data-template-btn]").addEventListener("click", function () { download(panel.dataset.template, columns.join(",") + "\n"); });
+    }
+
+    function showMsg(text, cls) { msg.textContent = text; msg.className = "msg " + (cls || "msg--err"); msg.setAttribute("data-shown", "true"); }
+    function clearMsg() { msg.setAttribute("data-shown", "false"); }
+
+    function afterFileSet(name, rowsText) {
+      drop.style.display = "none"; fileCard.setAttribute("data-shown", "true");
+      fileName.textContent = name; fileRows.textContent = rowsText; runBtn.disabled = false;
+      clearMsg(); results.setAttribute("data-shown", "false");
+    }
+
+    function setFile(file) {
+      current = file; parsed = null; demo = false; lastOut = null;
+      afterFileSet(file.name, kind === "capture" ? "ready" : "reading…");
+      if (kind === "csv") {
+        var reader = new FileReader();
+        reader.onload = function () {
+          parsed = parseCSV(String(reader.result || ""));
+          var n = parsed.rows.length; fileRows.textContent = n + (n === 1 ? " row" : " rows") + " detected";
+        };
+        reader.onerror = function () { fileRows.textContent = "selected"; };
+        reader.readAsText(file);
+      }
+    }
+
+    function clearFile() {
+      current = null; parsed = null; demo = false; lastOut = null; input.value = "";
+      fileCard.setAttribute("data-shown", "false"); drop.style.display = "block";
+      runBtn.disabled = true; clearMsg(); results.setAttribute("data-shown", "false");
+    }
+
+    function loadSample() {
+      var s = SAMPLES[sampleKey];
+      demo = true; lastOut = null; clearMsg(); results.setAttribute("data-shown", "false");
+      if (kind === "csv") {
+        var header = s.cols.concat("label");
+        var rows = s.rows.map(function (r) {
+          var feats = r.f || s.cols.map(function () { return 0; });
+          return feats.concat(r.t);
+        });
+        parsed = { header: header, rows: rows };
+        var text = [header].concat(rows).map(function (r) { return r.map(csvField).join(","); }).join("\n") + "\n";
+        current = new File([text], "sample_" + sampleKey + ".csv", { type: "text/csv" });
+        afterFileSet(current.name, rows.length + " rows detected");
+      } else {
+        parsed = null;
+        current = new File([new Blob([""])], "sample_capture.pcapng", { type: "application/octet-stream" });
+        afterFileSet(current.name, "sample capture");
+      }
+    }
+
+    input.addEventListener("change", function () { if (input.files && input.files[0]) setFile(input.files[0]); });
+    replaceBtn.addEventListener("click", function (e) { e.preventDefault(); clearFile(); input.click(); });
+    sampleBtn.addEventListener("click", function (e) { e.preventDefault(); loadSample(); });
+    drop.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+    ["dragenter","dragover"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); drop.classList.add("drop--over"); }); });
+    ["dragleave","drop"].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); drop.classList.remove("drop--over"); }); });
+    drop.addEventListener("drop", function (e) { var dt = e.dataTransfer; if (dt && dt.files && dt.files[0]) setFile(dt.files[0]); });
+
+    function truthFromCSV() {
+      if (!parsed || !parsed.header.length) return null;
+      var li = parsed.header.findIndex(function (h) { return h.trim().toLowerCase() === "label"; });
+      if (li < 0 || parsed.rows.length === 0) return null;
+      return parsed.rows.map(function (r) { return (r[li] || "").trim(); });
+    }
+
+    function renderSpectrum(labels) {
+      var counts = {}; labels.forEach(function (l) { counts[l] = (counts[l] || 0) + 1; });
+      var pairs = Object.keys(counts).map(function (k) { return [k, counts[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+      spectrum.innerHTML = ""; var total = labels.length;
+      pairs.forEach(function (p) {
+        var pct = total ? p[1] / total * 100 : 0;
+        var wrap = el("div");
+        var row = el("div", "bar__row"); row.appendChild(el("span", "bar__label", p[0]));
+        row.appendChild(el("span", "bar__value", p[1] + " · " + (Math.round(pct * 10) / 10) + "%"));
+        var track = el("div", "bar__track"); var fill = el("div", "bar__fill"); track.appendChild(fill);
+        wrap.appendChild(row); wrap.appendChild(track); spectrum.appendChild(wrap);
+        requestAnimationFrame(function () { fill.style.width = Math.max(pct, 1.5) + "%"; });
+      });
+    }
+
+    function renderCsvResults(labels) {
+      var truth = truthFromCSV();
+      if (truth && truth.length !== labels.length) truth = null;
+      lastOut = { kind: "csv", labels: labels, truth: truth };
+
+      var total = labels.length;
+      var distinct = Object.keys(labels.reduce(function (a, l) { a[l] = 1; return a; }, {})).length;
+      summary.innerHTML = "<b>" + total + "</b> " + (total === 1 ? "sample" : "samples") + " · <b>" + distinct + "</b> " + (distinct === 1 ? "algorithm" : "algorithms");
+      if (truth) {
+        var correct = 0; for (var i = 0; i < total; i++) if (truth[i] === labels[i]) correct++;
+        var pct = Math.round(correct / total * 1000) / 10;
+        var acc = el("span", "acc"); acc.appendChild(document.createTextNode(pct + "%"));
+        acc.appendChild(el("small", null, correct + "/" + total + " correct")); summary.appendChild(document.createTextNode(" ")); summary.appendChild(acc);
+      }
+
+      renderSpectrum(labels);
+
+      var t = el("table", "tbl"), thead = el("thead"), htr = el("tr");
+      htr.appendChild(el("th", "idx", "#"));
+      if (truth) { htr.appendChild(el("th", null, "True")); htr.appendChild(el("th", null, "Predicted")); htr.appendChild(el("th", "mark", "")); }
+      else htr.appendChild(el("th", null, "Prediction"));
+      thead.appendChild(htr); t.appendChild(thead);
+      var tb = el("tbody"); var shown = Math.min(total, RENDER_CAP);
+      for (var r = 0; r < shown; r++) {
+        var tr = el("tr"); tr.appendChild(el("td", "idx", r + 1));
+        if (truth) {
+          var good = truth[r] === labels[r]; if (!good) tr.className = "miss";
+          tr.appendChild(el("td", "true", truth[r] || "—"));
+          tr.appendChild(el("td", "pred", labels[r]));
+          tr.appendChild(el("td", "mark " + (good ? "ok" : "no"), good ? "✓" : "✗"));
+        } else tr.appendChild(el("td", "pred", labels[r]));
+        tb.appendChild(tr);
+      }
+      t.appendChild(tb); tableWrap.innerHTML = ""; tableWrap.appendChild(t);
+      tableLabel.textContent = truth ? "True vs predicted" : "Predictions";
+      moreNote.textContent = total > shown ? ("Showing first " + shown + " of " + total + " — download for the full set") : "";
+      results.setAttribute("data-shown", "true");
+    }
+
+    function renderCaptureResults(items) {
+      lastOut = { kind: "capture", items: items };
+      var total = items.length;
+      var pqCount = items.filter(function (it) { return it.algorithms.some(isPQ); }).length;
+      var hasTruth = items.some(function (it) { return it.truth; });
+      summary.innerHTML = "<b>" + total + "</b> " + (total === 1 ? "connection" : "connections") + " · <b>" + pqCount + "</b> on PQ key exchange";
+      if (hasTruth) {
+        var correct = items.filter(function (it) { return it.truth && it.algorithms.length === 1 && it.algorithms[0] === it.truth; }).length;
+        var pct = Math.round(correct / total * 1000) / 10;
+        var acc = el("span", "acc"); acc.appendChild(document.createTextNode(pct + "%"));
+        acc.appendChild(el("small", null, correct + "/" + total + " exact")); summary.appendChild(document.createTextNode(" ")); summary.appendChild(acc);
+      }
+
+      var t = el("table", "tbl"), thead = el("thead"), htr = el("tr");
+      htr.appendChild(el("th", null, "IP address"));
+      htr.appendChild(el("th", null, "Probable algorithm(s)"));
+      htr.appendChild(el("th", null, "Type"));
+      if (hasTruth) { htr.appendChild(el("th", null, "Confirmed")); htr.appendChild(el("th", "mark", "")); }
+      thead.appendChild(htr); t.appendChild(thead);
+      var tb = el("tbody"); var shown = Math.min(total, RENDER_CAP);
+      for (var i = 0; i < shown; i++) {
+        var it = items[i], tr = el("tr");
+        tr.appendChild(el("td", null, it.ip || "—"));
+        var ac = el("td"); var box = el("div", "algos"); it.algorithms.forEach(function (a) { box.appendChild(el("span", null, a)); });
+        if (!it.algorithms.length) box.appendChild(el("span", null, "—")); ac.appendChild(box); tr.appendChild(ac);
+        var anyPQ = it.algorithms.some(isPQ), allPQ = it.algorithms.length && it.algorithms.every(isPQ);
+        var tcell = el("td"); var tag;
+        if (allPQ) tag = el("span", "tag tag--pq", "PQ");
+        else if (anyPQ) tag = el("span", "tag tag--mix", "ambiguous");
+        else tag = el("span", "tag tag--cl", "classical");
+        tcell.appendChild(tag); tr.appendChild(tcell);
+        if (hasTruth) {
+          tr.appendChild(el("td", "true", it.truth || "—"));
+          var good = it.truth && it.algorithms.length === 1 && it.algorithms[0] === it.truth;
+          if (it.truth && !good) tr.className = "miss";
+          tr.appendChild(el("td", "mark " + (good ? "ok" : "no"), it.truth ? (good ? "✓" : "✗") : ""));
+        }
+        tb.appendChild(tr);
+      }
+      t.appendChild(tb); tableWrap.innerHTML = ""; tableWrap.appendChild(t);
+      moreNote.textContent = total > shown ? ("Showing first " + shown + " of " + total) : "";
+      results.setAttribute("data-shown", "true");
+    }
+
+    function renderRaw(data) {
+      lastOut = null;
+      summary.innerHTML = "Response received";
+      tableLabel && (tableLabel.textContent = "Raw response");
+      var pre = el("pre", "raw", JSON.stringify(data, null, 2));
+      tableWrap.innerHTML = ""; tableWrap.appendChild(pre); moreNote.textContent = "";
+      results.setAttribute("data-shown", "true");
+    }
+
+    downloadBtn.addEventListener("click", function () {
+      if (!lastOut) return; var out = []; var base;
+      if (lastOut.kind === "csv") {
+        if (parsed && parsed.header.length && parsed.rows.length === lastOut.labels.length) {
+          out.push(parsed.header.concat("Predicted").map(csvField).join(","));
+          parsed.rows.forEach(function (r, i) { out.push(r.concat(lastOut.labels[i]).map(csvField).join(",")); });
+        } else if (lastOut.truth) {
+          out.push("row,True,Predicted");
+          lastOut.labels.forEach(function (l, i) { out.push((i + 1) + "," + csvField(lastOut.truth[i]) + "," + csvField(l)); });
+        } else {
+          out.push("row,Predicted"); lastOut.labels.forEach(function (l, i) { out.push((i + 1) + "," + csvField(l)); });
+        }
+        base = (current && current.name ? current.name.replace(/\.csv$/i, "") : sampleKey);
+      } else {
+        var hasTruth = lastOut.items.some(function (it) { return it.truth; });
+        out.push(hasTruth ? "ip,algorithms,type,confirmed" : "ip,algorithms,type");
+        lastOut.items.forEach(function (it) {
+          var allPQ = it.algorithms.length && it.algorithms.every(isPQ), anyPQ = it.algorithms.some(isPQ);
+          var type = allPQ ? "PQ" : (anyPQ ? "ambiguous" : "classical");
+          var row = [it.ip, it.algorithms.join(" | "), type]; if (hasTruth) row.push(it.truth || "");
+          out.push(row.map(csvField).join(","));
+        });
+        base = "tls_capture";
+      }
+      download(base + "_results.csv", out.join("\n") + "\n");
+    });
+
+    function setLoading(on) {
+      runBtn.setAttribute("data-loading", on ? "true" : "false");
+      runBtn.disabled = on || !current; runLabel.textContent = on ? loadingLabel : idleLabel;
+    }
+
+    runBtn.addEventListener("click", function () {
+      if (!current) { showMsg("Choose a file first."); return; }
+      clearMsg(); results.setAttribute("data-shown", "false");
+
+      // demo path: render the sample with no backend
+      if (demo) {
+        setLoading(true);
+        setTimeout(function () {
+          setLoading(false);
+          if (kind === "csv") renderCsvResults(SAMPLES[sampleKey].rows.map(function (r) { return r.p; }));
+          else renderCaptureResults(SAMPLES.capture.map(function (c) { return { ip: c.ip, algorithms: c.algorithms.slice(), truth: c.true }; }));
+          showMsg("Showing sample data — not from the backend.", "msg--note");
+        }, 280);
+        return;
+      }
+
+      setLoading(true);
+      var fd = new FormData(); fd.append("file", current, current.name);
+      fetch(joinUrl(API.base, endpoint), { method: "POST", body: fd })
+        .then(function (res) {
+          return res.text().then(function (body) {
+            var data = null; try { data = JSON.parse(body); } catch (e) {}
+            if (!res.ok) throw new Error((data && data.error) ? data.error : "The server rejected the file (HTTP " + res.status + ").");
+            return data;
+          });
+        })
+        .then(function (data) {
+          setLoading(false); setStatus("ok", "Connected");
+          if (kind === "csv") {
+            if (!data || !Array.isArray(data.labels)) throw new Error("Unexpected response — expected { labels: [...] }.");
+            if (!data.labels.length) { showMsg("No rows to classify — the CSV looks empty below its header.", "msg--note"); return; }
+            renderCsvResults(data.labels);
+          } else {
+            var items = normalizeCapture(data);
+            if (!items) { renderRaw(data); return; }
+            if (!items.length) { showMsg("No PQ key-exchange connections found in this capture.", "msg--note"); return; }
+            renderCaptureResults(items);
+          }
+        })
+        .catch(function (err) {
+          setLoading(false);
+          var offline = err && (err.name === "TypeError" || /Failed to fetch|NetworkError/i.test(err.message));
+          if (offline) {
+            showMsg("Can't reach the backend at " + (API.base || "this page's origin") + ". Start it (python app.py), or click \u201cLoad sample data\u201d to preview the output.");
+            setStatus("err", "Offline");
+          } else showMsg(err.message || "Something went wrong.");
+        });
+    });
+  }
+
+  document.querySelectorAll(".panel").forEach(initPanel);
+  ping();
+})();
+</script>
+</body>
+</html>
