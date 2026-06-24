@@ -20,6 +20,8 @@ from .config import (
 from .classify import classify
 from .evaluate import evaluate
 from .classifiers import kex, sig
+from . import capture
+from .capture import classify as classify_capture
 
 __all__ = [
     "DEFAULT_CONFIG",
@@ -29,9 +31,11 @@ __all__ = [
     "get_config",
     "get_paths",
     "classify",
+    "classify_capture",
     "evaluate",
     "kex",
     "sig",
+    "capture",
 ]
 
 __version__ = "0.1.0"

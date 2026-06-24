@@ -19,6 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+# TLS capture classification (kind="capture"). Also needs a system tshark
+# binary (e.g. `brew install wireshark` / `apt install tshark`).
+capture = ["pyshark"]
 
 [tool.setuptools.packages.find]
 include = ["pq_classification*"]

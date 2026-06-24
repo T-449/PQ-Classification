@@ -3,16 +3,18 @@
 A Python package for classifying post-quantum cryptographic algorithms from
 runtime telemetry (memory and CPU-cycle features).
 
-Two classifiers ship with the package:
+Three classifiers ship with the package:
 
-| Kind  | What it predicts                          | Classes |
-|-------|-------------------------------------------|---------|
-| `kex` | Key-exchange mechanism                    | `kyber`, `classic`, `frodokem`, `bike`, `ntruprime`, `hqc`, `sike`, `rsa`, `ecdh` |
-| `sig` | Digital-signature algorithm               | `Dilithium`, `Falcon`, `SPHINCS`, `DSA` |
+| Kind      | What it predicts                          | Input | Classes |
+|-----------|-------------------------------------------|-------|---------|
+| `kex`     | Key-exchange mechanism                    | CSV telemetry | `kyber`, `classic`, `frodokem`, `bike`, `ntruprime`, `hqc`, `sike`, `rsa`, `ecdh` |
+| `sig`     | Digital-signature algorithm               | CSV telemetry | `Dilithium`, `Falcon`, `SPHINCS`, `DSA` |
+| `capture` | TLS key exchange seen on the wire         | `.pcapng` | per-connection algorithm names (e.g. `X25519`, `X25519 + Kyber768`) |
 
-The trained model + scaler artifacts are bundled with the package, so the
-defaults work out of the box. You can also point the package at your own
-artifacts via a JSON config file.
+`kex`/`sig` use bundled model + scaler artifacts, so the defaults work out of
+the box (you can point them at your own artifacts via a JSON config file).
+`capture` needs no model — it infers the algorithm from TLS handshake sizes —
+but requires the optional `pyshark` dependency and a system `tshark` binary.
 
 ---
 
@@ -50,6 +52,11 @@ print(labels)
 scores = pq_cls.evaluate("kex_labelled.csv", kind="kex")
 print(scores["accuracy"])
 print(scores["report_text"])
+
+# Detect TLS key exchange in a packet capture (needs pyshark + tshark)
+conns = pq_cls.classify("capture.pcapng", kind="capture")
+print(conns)
+# [{'ip': '104.16.116.50', 'algorithms': ['X25519 + Kyber768']}, ...]
 ```
 
 ---
@@ -93,13 +100,15 @@ Restore the bundled defaults.
 
 Return a copy of the currently active configuration.
 
-### `pq_cls.classify(source, kind="kex") -> list[str]`
+### `pq_cls.classify(source, kind="kex")`
 
-Classify each row of a CSV file (or pandas `DataFrame`) using the `kind`
-classifier and return one label string per row.
+Classify `source` using the `kind` classifier.
 
-* `source` — path to a CSV, or an in-memory `pandas.DataFrame`.
-* `kind` — `"kex"` or `"sig"`.
+* `source` — for `kex`/`sig`: path to a CSV, or an in-memory `pandas.DataFrame`.
+  For `capture`: path to a `.pcapng` file.
+* `kind` — `"kex"`, `"sig"`, or `"capture"`.
+* Returns — `kex`/`sig` return `list[str]` (one label per row); `capture`
+  returns `list[dict]` (`{"ip", "algorithms"}` per connection).
 
 **Required input columns**
 
@@ -107,6 +116,21 @@ classifier and return one label string per row.
   `label` columns are ignored.
 * `sig` — `CPU0_cycles` … `CPU11_cycles`, `VmSize`, `VmRSS`, `VmData`,
   `VmStk`, `VmExe`, `VmLib`, `VmPTE`. Any missing column is filled with `0`.
+* `capture` — n/a (reads a packet capture, not a CSV).
+
+### `pq_cls.classify_capture(pcap_path, tshark_path=None) -> list[dict]`
+
+The library equivalent of the web app's `/classify` endpoint. Parses a
+`.pcapng`, pairs TLS 1.3 ClientHello/ServerHello messages, and infers the
+key-exchange algorithm per connection from the key_share sizes. Same as
+`classify(pcap_path, kind="capture")`.
+
+* `pcap_path` — path to the capture file.
+* `tshark_path` — explicit path to `tshark`; auto-detected on `PATH` if omitted.
+* Returns `[{"ip": server_ip, "algorithms": [...]}, ...]`.
+
+Requires the optional `capture` extra (`pip install pq_classification[capture]`)
+and a system `tshark` binary (`brew install wireshark` / `apt install tshark`).
 
 ### `pq_cls.evaluate(source, kind="kex") -> dict`
 
@@ -239,6 +263,7 @@ pq-classification-package/
 │   ├── __init__.py            # public API
 │   ├── config.py              # add_config / set_config / get_config
 │   ├── classify.py            # classify(source, kind=...)
+│   ├── capture.py             # TLS .pcapng key-exchange detection (kind="capture")
 │   ├── evaluate.py            # evaluate(source, kind=...)
 │   ├── classifiers/
 │   │   ├── kex.py             # KEX feature list + classifier
@@ -260,6 +285,11 @@ pq-classification-package/
 * `joblib`
 * `scikit-learn==1.4.2`
 * `xgboost==2.0.3`
+
+Optional, for `kind="capture"`:
+
+* `pyshark` — `pip install pq_classification[capture]`
+* a system `tshark` binary (`brew install wireshark` / `apt install tshark`)
 
 The exact `scikit-learn` and `xgboost` versions matter — the bundled
 artifacts were trained against them and `joblib` will warn (or fail) if

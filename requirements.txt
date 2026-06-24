@@ -4,3 +4,7 @@ pandas
 joblib
 scikit-learn==1.4.2
 xgboost==2.0.3
+
+# TLS capture (/classify) — parses .pcapng handshakes. pyshark drives tshark,
+# which is a system binary: install it with ./install_wireshark.sh
+pyshark

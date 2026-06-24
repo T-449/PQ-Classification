@@ -12,5 +12,6 @@ SCALER_SIG = os.path.join(BASE_DIR, "scalers", "scaler_sig.pkl")
 # Temporary upload directories (created automatically at runtime)
 UPLOAD_KEX = os.path.join(BASE_DIR, "uploads", "kex")
 UPLOAD_SIG = os.path.join(BASE_DIR, "uploads", "sig")
+UPLOAD_CAP = os.path.join(BASE_DIR, "uploads", "capture")
 
 PORT = 5001

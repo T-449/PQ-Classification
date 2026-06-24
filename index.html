@@ -374,6 +374,31 @@
   var PQ_KEYS = ["kyber","frodo","mceliece","bike","hqc","ntru","sike","dilithium","falcon","sphincs"];
   function isPQ(a) { a = String(a).toLowerCase(); return PQ_KEYS.some(function (k) { return a.indexOf(k) > -1; }); }
 
+  /* Ground-truth labels in uploaded CSVs are encoded differently from the model's
+     class names: KEX uses numeric indices (e.g. "3"), SIG uses suffixed strings
+     (e.g. "Dilithium5.out"). These maps mirror the backend (evaluate.py) so the UI
+     can compare truth against predicted names. */
+  var KEX_INDEX = { "0":"kyber","1":"classic","2":"frodokem","3":"bike","4":"ntruprime",
+                    "5":"hqc","6":"sike","7":"rsa","8":"ecdh" };
+  var SIG_NAMES = ["Dilithium","Falcon","SPHINCS","DSA"];
+  var SIG_INDEX = { "0":"Dilithium","1":"Falcon","2":"SPHINCS","3":"DSA" };
+
+  // Normalize a raw truth label to its canonical class name for the given panel kind.
+  // Returns the raw value unchanged when no mapping applies.
+  function canonTruth(raw, sampleKey) {
+    var v = String(raw == null ? "" : raw).trim();
+    if (!v) return v;
+    if (sampleKey === "kex") return KEX_INDEX.hasOwnProperty(v) ? KEX_INDEX[v] : v;
+    if (sampleKey === "sig") {
+      if (SIG_INDEX.hasOwnProperty(v)) return SIG_INDEX[v];
+      var lv = v.toLowerCase();
+      for (var i = 0; i < SIG_NAMES.length; i++) {
+        if (lv.indexOf(SIG_NAMES[i].toLowerCase()) > -1) return SIG_NAMES[i];
+      }
+    }
+    return v;
+  }
+
   /* sample data (used by "Load sample data" — rendered with no backend) */
   var SAMPLES = {
     kex: {
@@ -591,6 +616,9 @@
     function renderCsvResults(labels) {
       var truth = truthFromCSV();
       if (truth && truth.length !== labels.length) truth = null;
+      // Map raw truth labels (numeric indices / suffixed names) to canonical class
+      // names so they can be compared against the model's predictions.
+      if (truth) truth = truth.map(function (t) { return canonTruth(t, sampleKey); });
       lastOut = { kind: "csv", labels: labels, truth: truth };
 
       var total = labels.length;

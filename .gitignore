@@ -1,9 +1,9 @@
-# Python bytecode and cache
+
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Distribution / packaging
+
 build/
 dist/
 *.egg-info/
@@ -11,13 +11,13 @@ dist/
 *.egg
 pip-wheel-metadata/
 
-# Virtual environments
+
 .venv/
 venv/
 env/
 ENV/
 
-# Tool caches
+
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
@@ -28,25 +28,33 @@ ENV/
 .coverage.*
 htmlcov/
 
-# IDE/editor files
+
 .vscode/
 .idea/
 .DS_Store
 
-# Environment and local config
+
 .env
 .env.*
 *.local
 config.json
 
-# Jupyter
+
 .ipynb_checkpoints/
 
-# Project runtime uploads and temp data
+
 uploads/
 
-# Logs
+
 *.log
 
-# Local scalers/artifacts generated during experiments
 scalers/
+
+.venv_pcap/
+
+*.zip
+
+*.pcap
+*.pcapng
+!demo_tls.pcapng
+
